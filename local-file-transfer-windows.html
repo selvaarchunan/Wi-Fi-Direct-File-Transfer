@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Wi-Fi Drop (Large File & Drag-and-Drop)</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --accent: #38bdf8;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 680px;
+            margin: 30px auto;
+            padding: 0 16px;
+            line-height: 1.5;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        h1, h2 { margin-top: 0; }
+        .code-badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent);
+            font-family: monospace;
+            font-size: 1.3rem;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-top: 6px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            color: #fff;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+        button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: var(--primary-hover); }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.6);
+            transition: all 0.2s ease;
+        }
+        .dropzone.dragover {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+        }
+        .file-list { list-style: none; padding: 0; margin: 0; }
+        .file-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .file-item:last-child { border-bottom: none; }
+        .file-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status { font-size: 0.9rem; color: var(--muted); margin-top: 10px; }
+        .connected { color: var(--success); font-weight: 600; }
+        
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #0f172a;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.1s linear;
+        }
+        .download-btn {
+            background: var(--success);
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Wi-Fi Direct Transfer</h1>
+        <p style="color: var(--muted); margin: 0 0 16px;">Direct local browser-to-browser transfer for videos, archives, and bulk files.</p>
+        
+        <div>
+            <span style="font-size: 0.9rem; color: var(--muted);">Your Device ID:</span><br>
+            <span id="my-id" class="code-badge">Generating...</span>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <label for="peer-id-input" style="font-size: 0.9rem; color: var(--muted);">Connect to Target Device ID:</label>
+            <div class="form-group">
+                <input type="text" id="peer-id-input" placeholder="e.g. 4-character ID">
+                <button id="connect-btn" onclick="connectToPeer()">Connect</button>
+            </div>
+        </div>
+        <div id="status-text" class="status">Waiting for pairing...</div>
+    </div>
+
+    <div class="card">
+        <h2>Send Any File</h2>
+        <div class="dropzone" id="dropzone">
+            <svg style="width: 42px; height: 42px; margin-bottom: 8px; fill: var(--muted);" viewBox="0 0 24 24">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+            <div><strong>Drag & Drop movie or files here</strong>, or <span style="color: var(--accent);">browse</span></div>
+            <div style="font-size: 0.8rem; color: var(--muted); margin-top: 4px;">Supports all extensions: .mp4, .mkv, .mov, .zip, .iso, etc.</div>
+            <input type="file" id="file-input" style="display: none;" onchange="handleFileSelect(this.files[0])">
+        </div>
+
+        <div id="send-progress-container" style="display: none; margin-top: 16px;">
+            <div class="file-header">
+                <span id="send-filename" style="font-weight: 500;">Uploading...</span>
+                <span id="send-percentage" style="font-size: 0.85rem; color: var(--muted);">0%</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="send-progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Received Files</h2>
+        <ul id="received-list" class="file-list">
+            <li id="no-files" style="color: var(--muted);">No incoming transfers.</li>
+        </ul>
+    </div>
+
+    <script>
+        const CHUNK_SIZE = 64 * 1024; // 64 KB per slice
+        const shortId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const peer = new Peer(shortId);
+        let activeConn = null;
+
+        // Incoming transfer assembly buffer
+        let incomingFile = {
+            name: '',
+            size: 0,
+            type: '',
+            receivedBytes: 0,
+            chunks: [],
+            progressBar: null,
+            percentText: null
+        };
+
+        peer.on('open', (id) => {
+            document.getElementById('my-id').textContent = id;
+        });
+
+        peer.on('connection', (conn) => {
+            setupConnection(conn);
+        });
+
+        function connectToPeer() {
+            const remoteId = document.getElementById('peer-id-input').value.trim().toUpperCase();
+            if (!remoteId) return;
+
+            document.getElementById('status-text').textContent = `Connecting to ${remoteId}...`;
+            const conn = peer.connect(remoteId, { reliable: true });
+            setupConnection(conn);
+        }
+
+        function setupConnection(conn) {
+            activeConn = conn;
+
+            conn.on('open', () => {
+                document.getElementById('status-text').innerHTML = `Connected to <span class="connected">${conn.peer}</span>`;
+                document.getElementById('connect-btn').disabled = true;
+                document.getElementById('peer-id-input').disabled = true;
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'start') {
+                    // Initialize receiving container
+                    document.getElementById('no-files')?.remove();
+                    incomingFile = {
+                        name: data.name,
+                        size: data.size,
+                        mime: data.mime,
+                        receivedBytes: 0,
+                        chunks: []
+                    };
+                    createReceiveProgressItem(data.name, data.size);
+                } else if (data.type === 'chunk') {
+                    incomingFile.chunks.push(data.chunk);
+                    incomingFile.receivedBytes += data.chunk.byteLength;
+
+                    const progress = Math.min(100, Math.round((incomingFile.receivedBytes / incomingFile.size) * 100));
+                    if (incomingFile.progressBar) incomingFile.progressBar.style.width = progress + '%';
+                    if (incomingFile.percentText) incomingFile.percentText.textContent = progress + '%';
+
+                    if (incomingFile.receivedBytes >= incomingFile.size) {
+                        finalizeReceivedFile();
+                    }
+                }
+            });
+
+            conn.on('close', () => {
+                document.getElementById('status-text').textContent = 'Disconnected.';
+                document.getElementById('connect-btn').disabled = false;
+                document.getElementById('peer-id-input').disabled = false;
+                activeConn = null;
+            });
+        }
+
+        // Drag and drop events
+        const dropzone = document.getElementById('dropzone');
+        dropzone.addEventListener('click', () => document.getElementById('file-input').click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (!file) return;
+            if (!activeConn || !activeConn.open) {
+                alert('Please connect to a device ID first.');
+                return;
+            }
+            streamFile(file);
+        }
+
+        async function streamFile(file) {
+            const sendContainer = document.getElementById('send-progress-container');
+            const sendBar = document.getElementById('send-progress-bar');
+            const sendPercent = document.getElementById('send-percentage');
+            const sendFilename = document.getElementById('send-filename');
+
+            sendContainer.style.display = 'block';
+            sendFilename.textContent = `Sending: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`;
+
+            // Send metadata first
+            activeConn.send({
+                type: 'start',
+                name: file.name,
+                size: file.size,
+                mime: file.type || 'application/octet-stream'
+            });
+
+            let offset = 0;
+            while (offset < file.size) {
+                // Prevent data buffer overflow (backpressure handling)
+                if (activeConn.dataChannel && activeConn.dataChannel.bufferedAmount > 8 * 1024 * 1024) {
+                    await new Promise(r => setTimeout(r, 50));
+                    continue;
+                }
+
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                const buffer = await slice.arrayBuffer();
+                
+                activeConn.send({
+                    type: 'chunk',
+                    chunk: buffer
+                });
+
+                offset += buffer.byteLength;
+                const progress = Math.min(100, Math.round((offset / file.size) * 100));
+                sendBar.style.width = progress + '%';
+                sendPercent.textContent = progress + '%';
+            }
+        }
+
+        function createReceiveProgressItem(name, size) {
+            const li = document.createElement('li');
+            li.className = 'file-item';
+            li.id = 'current-incoming-item';
+            li.innerHTML = `
+                <div class="file-header">
+                    <div>
+                        <strong>${name}</strong>
+                        <div style="font-size: 0.8rem; color: var(--muted);">${(size / (1024 * 1024)).toFixed(1)} MB</div>
+                    </div>
+                    <span id="recv-percent" style="font-size: 0.85rem; color: var(--muted);">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="recv-bar"></div>
+                </div>
+                <div id="recv-download-placeholder"></div>
+            `;
+            document.getElementById('received-list').prepend(li);
+            incomingFile.progressBar = document.getElementById('recv-bar');
+            incomingFile.percentText = document.getElementById('recv-percent');
+        }
+
+        function finalizeReceivedFile() {
+            const blob = new Blob(incomingFile.chunks, { type: incomingFile.mime });
+            const url = URL.createObjectURL(blob);
+
+            const downloadContainer = document.getElementById('recv-download-placeholder');
+            if (downloadContainer) {
+                downloadContainer.innerHTML = `
+                    <div style="margin-top: 10px;">
+                        <a href="${url}" download="${incomingFile.name}" class="download-btn">Save to Device</a>
+                    </div>
+                `;
+            }
+            if (incomingFile.percentText) {
+                incomingFile.percentText.textContent = '100% (Complete)';
+                incomingFile.percentText.style.color = 'var(--success)';
+            }
+        }
+    </script>
+</body>
+</html>
