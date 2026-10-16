@@ -8,6 +8,8 @@ Wi-Fi Direct File Transfer provides a simple interface for connecting two browse
 
 The application includes device pairing, drag and drop file selection, chunk based transfers, progress indicators and file downloads.
 
+Demo-https://selvaarchunan.github.io/Wi-Fi-Direct-File-Transfer/
+
 ## Features
 
 - Peer to peer browser connections using PeerJS
